@@ -1,7 +1,7 @@
 from Tkinter import *
 import random
 import time
-import GTSnakeAI
+import SnakeAI as AI
 #============================= Snake Game =====================================
 class Frame:
     def __init__(self, height = 480, width = 640, useAI = True, speed = 40):
@@ -20,7 +20,7 @@ class Frame:
         self.game = Game(height/self.pixelSize, width/self.pixelSize)
         # This is your AI
         self.useAI = useAI
-        self.ai = GTSnakeAI.SnakeAI(self.game)
+        self.ai = AI.SnakeAI(self.game)
     def Show(self):
         self.game.start()
         self.Refresh()

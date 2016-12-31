@@ -1,7 +1,7 @@
 from Tkinter import *
 import random
 import time
-import SnakeAI
+import GTSnakeAI
 #============================= Snake Game =====================================
 class Frame:
     def __init__(self, height = 480, width = 640, useAI = True, speed = 40):
@@ -9,14 +9,18 @@ class Frame:
         self.root = Tk()
         self.root.bind("<Key>", self.KeyPress)
         self.gameWidth = width
-        self.gameHeight = height
+        self.gameHeight = height+self.pixelSize*2
+        self.scoreVar = StringVar()
+        self.scoreVar.set("Score: 0")
+        self.scoreBoard = Label(self.root, textvariable=self.scoreVar)
+        self.scoreBoard.pack()
         self.canvas = Canvas(self.root, bg='black',height=height, width=width)
         self.canvas.pack()
         self.speed = speed
         self.game = Game(height/self.pixelSize, width/self.pixelSize)
         # This is your AI
         self.useAI = useAI
-        self.ai = SnakeAI.SnakeAI(self.game)
+        self.ai = GTSnakeAI.SnakeAI(self.game)
     def Show(self):
         self.game.start()
         self.Refresh()
@@ -24,6 +28,7 @@ class Frame:
     def Refresh(self):
         self.game.Update()
         if self.game.state == 'play':
+            self.scoreVar.set("Score: {}".format(self.game.score))
             self.canvas.delete('all')
             self.DrawGame()
             if self.useAI:
@@ -31,23 +36,46 @@ class Frame:
             self.root.after(int(1000/self.speed), self.Refresh)
         else:
             self.canvas.delete('all')
+            self.DrawGame()
             self.canvas.create_text(self.gameWidth/2,self.gameHeight/2,text="Game Over, press space to restart!", fill='white')
     def DrawGame(self):
         self.DrawRect(self.game.food.pos, 'blue')
-        for p in self.game.snake.body[:-1]:
-            self.DrawRect(p, 'white')
+        l = len(self.game.snake.body)
+        for i in range(len(self.game.snake.body[:-1])):
+            p = self.game.snake.body[i]
+            c = '#'+'FF'+"{:02x}".format(255-(i*255/l))*2
+            self.DrawRect(p, c)
         self.DrawRect(self.game.snake.body[-1], 'red')
     def DrawRect(self, pos, color):
         x = pos[0]
         y = pos[1]
         pSize = self.pixelSize
         self.canvas.create_rectangle(x*pSize, y*pSize, (x+1)*pSize, (y+1)*pSize, fill=color)
+    def SaveGame(self):
+        with open('sav', 'w') as f:
+            f.write(str(self.game.score) + '\n')
+            f.write(str(self.game.food.pos) + '\n')
+            f.write(str(self.game.snake.body) + '\n')
+            f.write(str(self.game.snake.direction) + '\n')
+    def LoadGame(self):
+        with open('sav', 'r') as f:
+            self.game.score = eval(f.readline()[:-1])
+            self.game.food.pos = eval(f.readline()[:-1])
+            self.game.snake.body = eval(f.readline()[:-1])
+            self.game.snake.direction = eval(f.readline()[:-1])
+
     def KeyPress(self, event):
         sym = event.keysym
         if self.game.state == 'play':
             if sym in ['Up', 'Down', 'Left', 'Right']:
                 if not self.useAI:
                     self.game.ChangeDirection(sym)
+            elif sym == 's':
+                print 'Game is saved'
+                self.SaveGame()
+            elif sym == 'l':
+                print 'Game is loaded'
+                self.LoadGame()
         elif self.game.state == 'end':
             if sym == 'space':
                 self.game.start()
@@ -60,10 +88,12 @@ class Game:
         self.height = height
         self.speed = 5
         self.state = 'play'
+        self.score = 0
     def start(self):
         self.state = 'play'
         self.snake.New()
         self.food.New(self.snake)
+        self.score = 0
     def ChangeDirection(self, direction):
         if self.snake.direction[1] == 0:
             if direction == 'Up':
@@ -80,6 +110,7 @@ class Game:
             if self.snake.Next() == self.food.pos:
                 self.snake.Move(eat = True)
                 self.food.SetRandomPos(self.snake)
+                self.score += 1
             else:
                 self.snake.Move(eat = False)
             self.snake.CheckDeath()

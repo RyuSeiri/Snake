@@ -1,10 +1,43 @@
 from Tkinter import *
 import random
 import time
-import SnakeAI as AI
+import sys
+#import SnakeAI as AI
 #============================= Snake Game =====================================
+class Evaluator:
+    def __init__(self, height = 24, width = 32, ai = None, config = None):
+        self.game = Game(height, width)
+        if ai == None:
+            print 'You need an AI for evaluate mode'
+            sys.exit(1)
+        else:
+            self.ai = ai.SnakeAI(self.game)
+        self.config = config
+    def Evaluate(self):
+        timeUse = 0
+        moveUse = 0
+        lastScore = 0
+        scoreMove = 0
+        while self.game.state == 'play':
+            self.game.Update()
+            startTime = time.time()
+            d = self.ai.GetDirection(self.game)
+            timeUse += time.time() - startTime
+            self.game.ChangeDirection(d)
+            moveUse += 1
+            scoreMove += 1
+            if self.game.score != lastScore:
+                scoreMove = 0
+                lastScore = self.game.score
+                if self.game.score % 10 == 0:
+                    print "Score: {:3}, Time used {:.3f}, Move used {:5}".format(self.game.score, timeUse, moveUse)
+            if scoreMove > self.game.height*self.game.width*2:
+                print "Too long not score, break out"
+                break
+        print "Final score: {:3}".format(self.game.score)
+
 class Frame:
-    def __init__(self, height = 480, width = 640, useAI = True, speed = 40):
+    def __init__(self, height = 480, width = 640, ai = None, speed = 40):
         self.pixelSize = 20
         self.root = Tk()
         self.root.bind("<Key>", self.KeyPress)
@@ -18,23 +51,33 @@ class Frame:
         self.canvas.pack()
         self.speed = speed
         self.game = Game(height/self.pixelSize, width/self.pixelSize)
-        # This is your AI
-        self.useAI = useAI
-        self.ai = AI.SnakeAI(self.game)
+        self.load = False
+        if ai:
+            self.ai = ai.SnakeAI(self.game)
     def Show(self):
         self.game.start()
         self.Refresh()
         self.root.mainloop()
     def Refresh(self):
         self.game.Update()
+        if self.load:
+            self.load = False
+            self.LoadGame()
+            self.game.Pause()
+            if self.ai:
+                self.game.ChangeDirection(self.ai.GetDirection(self.game))
         if self.game.state == 'play':
             self.scoreVar.set("Score: {}".format(self.game.score))
             self.canvas.delete('all')
             self.DrawGame()
-            if self.useAI:
+            if self.ai:
                 self.game.ChangeDirection(self.ai.GetDirection(self.game))
             self.root.after(int(1000/self.speed), self.Refresh)
-        else:
+        elif self.game.state == 'pause':
+            self.canvas.delete('all')
+            self.DrawGame()
+            self.root.after(int(1000/self.speed), self.Refresh)
+        elif self.game.state == 'end':
             self.canvas.delete('all')
             self.DrawGame()
             self.canvas.create_text(self.gameWidth/2,self.gameHeight/2,text="Game Over, press space to restart!", fill='white')
@@ -58,15 +101,17 @@ class Frame:
             f.write(str(self.game.snake.body) + '\n')
             f.write(str(self.game.snake.direction) + '\n')
     def LoadGame(self):
+        if self.ai and self.ai.Clear():
+            self.ai.Clear()
         with open('sav', 'r') as f:
             self.game.score = eval(f.readline()[:-1])
             self.game.food.pos = eval(f.readline()[:-1])
             self.game.snake.body = eval(f.readline()[:-1])
-            self.game.snake.direction = eval(f.readline()[:-1])
 
     def KeyPress(self, event):
         sym = event.keysym
-        if self.game.state == 'play':
+
+        if self.game.state == 'play' or self.game.state == 'pause':
             if sym in ['Up', 'Down', 'Left', 'Right']:
                 if not self.useAI:
                     self.game.ChangeDirection(sym)
@@ -75,7 +120,9 @@ class Frame:
                 self.SaveGame()
             elif sym == 'l':
                 print 'Game is loaded'
-                self.LoadGame()
+                self.load = True
+            elif sym == 'p':
+                self.game.Pause()
         elif self.game.state == 'end':
             if sym == 'space':
                 self.game.start()
@@ -95,6 +142,8 @@ class Game:
         self.food.New(self.snake)
         self.score = 0
     def ChangeDirection(self, direction):
+        if direction not in ['Up', 'Down', 'Left', 'Right']:
+            raise Exception("You need to pass 'Up', 'Down', 'Left' or 'Right' to the function!")
         if self.snake.direction[1] == 0:
             if direction == 'Up':
                 self.snake.direction = (0,-1)
@@ -106,7 +155,7 @@ class Game:
             elif direction == 'Right':
                 self.snake.direction = (1,0)
     def Update(self):
-        if not self.snake.dead:
+        if not self.snake.dead and self.state == 'play':
             if self.snake.Next() == self.food.pos:
                 self.snake.Move(eat = True)
                 self.food.SetRandomPos(self.snake)
@@ -116,6 +165,11 @@ class Game:
             self.snake.CheckDeath()
         if self.snake.dead:
             self.state = 'end'
+    def Pause(self):
+        if self.state == 'play':
+            self.state = 'pause'
+        elif self.state == 'pause':
+            self.state = 'play'
 
 class Food:
     def __init__(self, snake = None, height = 20, width = 30):
@@ -152,9 +206,12 @@ class Snake:
     def CheckDeath(self):
         if not (0 <= self.body[-1][0] < self.gameWidth and 
                 0 <= self.body[-1][1] < self.gameHeight):
+            print "Out of the boundary"
             self.dead = True
         for p in self.body[:-1]:
             if p == self.body[-1]:
+                print p, " Hit self"
                 self.dead = True
+                break
         return self.dead
 

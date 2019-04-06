@@ -10,7 +10,7 @@ if __name__ == '__main__':
     if args.ai:
         ai = importlib.import_module(args.ai)
     else:
-        ai = importlib.import_module('SnakeAI')
+        ai = None
     if args.evaluation:
         app = Evaluator(height = 24, width = 32, ai = ai, config = None)
         app.Evaluate()

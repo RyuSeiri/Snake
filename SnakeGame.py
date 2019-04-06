@@ -52,6 +52,7 @@ class Frame:
         self.speed = speed
         self.game = Game(height/self.pixelSize, width/self.pixelSize)
         self.load = False
+        self.ai   = None
         if ai:
             self.ai = ai.SnakeAI(self.game)
     def Show(self):
@@ -113,7 +114,7 @@ class Frame:
 
         if self.game.state == 'play' or self.game.state == 'pause':
             if sym in ['Up', 'Down', 'Left', 'Right']:
-                if not self.useAI:
+                if not self.ai:
                     self.game.ChangeDirection(sym)
             elif sym == 's':
                 print 'Game is saved'
